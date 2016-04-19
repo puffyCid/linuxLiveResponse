@@ -1,0 +1,22 @@
+Linux Live Response Script
+
+Steps to use Response Script:
+
+1.  Open terminal and cd into the response script directory
+
+2.  Use ls to confirm that you are in the correct directory (you should see response, Tools, Collect, ldd_output, README)
+
+3.  Execute response as either root (sudo -i) or sudo user
+	Ex: sudo ./response
+
+4. Type in your name, case title, date, time, and directory where you want to store the information. 
+
+5. The response script will run and at the end will ask for the device file name for the host hard drive and USB drive. Ex: /dev/sda, /dev/sdb, etc
+
+6.  The script will prompt the user if they want to dump the systems memory.  If they choose yes, the script will compile LiME and dump the memory.  (Default is Yes)
+
+7.  Afterwards the script will determine whether the USB drive has enough space to create a forensic image.  If it does it prompts the user if they want to create one.
+If the user chooses yes, the script creates an image, if the user chooses no, the script ends.  (Default is No)
+
+8.  Output is stored in the Collect folder.
+

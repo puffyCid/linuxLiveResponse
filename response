@@ -1,0 +1,157 @@
+#!/bin/bash
+
+clear
+if test "$EUID" == 0
+then
+	echo "WE...ARE...GROOT!!...just kidding.  Script is executing.."
+else 
+	echo "This script needs root permissions to run.  Please become root or use sudo ./response"
+	exit
+fi
+collectionDirectory=`pwd`/Collect
+
+echo "Welcome to Groot's Response Script"
+read -p "What is your name? " name
+read -p "What is the case name? " caseName
+read -p "What is the date? " currentDate
+read -p "What is the time? " time
+echo "Type the full path of where you are storing data (DO NOT include the last slash)"
+echo ""
+read -p "The default storage location is: $collectionDirectory. (Hit Enter if this is good):" storageDirectory
+
+#Determines whether or not the user is using the default directory.  
+if([[ $storageDirectory  == "" ]])
+then
+	storageDirectory=$collectionDirectory
+	echo ""
+fi
+
+echo "Using $storageDirectory to store evidence."
+
+echo "This script was run by: $name for the case: $caseName, on $currentDate at $time" >> $storageDirectory/scriptRunInfo.txt
+
+ToolsDirectory=`pwd`
+echo "Getting System information (uname -a):"
+$ToolsDirectory/Tools/./uname -a >> $storageDirectory/systemInfo.txt
+
+echo "Getting IP info using ifconfig and ip addr list:"
+$ToolsDirectory/Tools/./ifconfig -a >> $storageDirectory/IPinfo.txt
+$ToolsDirectory/Tools/./ip addr list >> $storageDirectory/IPinfo.txt
+
+echo "Getting date/time using date:"
+$ToolsDirectory/Tools/./date >> $storageDirectory/dateTime.txt
+
+echo "Getting logged on users using w:"
+$ToolsDirectory/Tools/./w >> $storageDirectory/usersLoggedOn.txt
+
+echo "Getting working directory (pwd):"
+$ToolsDirectory/Tools/./pwd >> $storageDirectory/workingDirectory.txt
+
+echo "Getting kernel modules (lsmod):"
+$ToolsDirectory/Tools/./lsmod >> $storageDirectory/kernelModules.txt
+
+echo "Finding open ports and processes associated (nestat):"
+$ToolsDirectory/Tools/./netstat -panto >> $storageDirectory/openPorts.txt #Relook at this one: pano vs panto
+
+echo "Getting routing info (netstat):"
+$ToolsDirectory/Tools/./netstat -rn >> $storageDirectory/routingInfo.txt
+
+echo "Getting current processes (ps):"
+$ToolsDirectory/Tools/./ps aux >> $storageDirectory/currentProcesses.txt
+
+echo "Copying passwd, hosts, groups, shadow files:"
+$ToolsDirectory/Tools/./cp /etc/{passwd,hosts,group,shadow} $storageDirectory/
+
+#Gets last modified times for all files.  2>/dev/null supresses errors by redirecting them null
+echo "Getting last modified times for all files (ls -lRac)...please wait: "
+$ToolsDirectory/Tools/./ls -lRac 2>/dev/null / >> $storageDirectory/lastModifiedTime.txt
+
+#Gets last accessed times for all files.  2>/dev/null supresses errors by redirecting them null
+echo "Getting last accessed times for all files (ls -lRau)...please wait:"
+$ToolsDirectory/Tools/./ls -lRau 2>/dev/null / >> $storageDirectory/lastAccessedTime.txt
+
+#Gets creation times for all files.  2>/dev/null supresses errors by redirecting them null
+echo "Getting creation times for all files (ls -lRa)..please wait:"
+$ToolsDirectory/Tools/./ls -lRa 2>/dev/null / >> $storageDirectory/createdTime.txt
+
+echo "Getting arp cache (arp -a):"
+$ToolsDirectory/Tools/./arp -a >> $storageDirectory/arpCache.txt
+
+echo "Getting open files (lsof):"
+$ToolsDirectory/Tools/./lsof 2>/dev/null >> $storageDirectory/openFiles.txt
+
+echo ""
+
+
+deviceFileList= $ToolsDirectory/Tools/./fdisk -l 2>/dev/null | $ToolsDirectory/Tools/./grep "Disk /"
+#echo $deviceFileList
+read -p "Please type out the host device file (ex: /dev/sdX) where X is the host letter (See above for info): " deviceFile
+read -p "Please type out the USB device file that contains the Response Script (ex: /dev/sdX) where X is the USB letter: " usbFile
+
+hostDriveSize=`$ToolsDirectory/Tools/./fdisk -s $deviceFile`
+usbDriveSize=`$ToolsDirectory/Tools/./fdisk -s $usbFile`
+
+
+usbSize=`$ToolsDirectory/Tools/./fdisk -l 2>/dev/null | $ToolsDirectory/Tools/./grep "Disk $usbFile"`
+memorySize=`$ToolsDirectory/Tools/./free -m | $ToolsDirectory/Tools/./grep Mem:`
+
+echo "USB Size:"
+echo "$usbSize"
+echo ""
+echo "Memory Size (in MB):"
+echo "$memorySize"
+
+#Determines if LiME has already been loaded into the kernel
+lazyLimeUser=`$ToolsDirectory/Tools/./lsmod | $ToolsDirectory/Tools/./grep lime`
+#echo "$lazyLimeUser"
+read -p "Do you want to dump memory? Make sure you have enough space on USB drive. (See above) Y/n: " memoryDump
+
+if [ -n "$lazyLimeUser" ]
+then
+	echo ""
+	echo "It appears Lime has already been inserted into the Kernel...someone forgot to remove it >:("
+	echo "Removing LiME..."
+	echo ""
+	$ToolsDirectory/Tools/./rmmod "lime"
+fi
+
+#Dumps memory.  Determines current Kernel Version.  Inserts LiME and then removes afterwards once its finished.
+
+if([[ $memoryDump == "Y" ]] || [[ $memoryDump == "y" ]] || [[ $memoryDump == "" ]])
+then
+	echo "Awesome! First we need to build LiME"
+	echo "" 
+	echo "Building LiME..."
+	if($ToolsDirectory/Tools/./make  -sC $ToolsDirectory/Tools/LiME/src)
+	then
+		echo "LiME was built successfully!"
+		echo "Using Kernel Version: `$ToolsDirectory/Tools/./uname -r`"
+		echo ""
+		kernelVersion=`$ToolsDirectory/Tools/./uname -r`
+		echo "Dumping memory"
+		$ToolsDirectory/Tools/./insmod "$ToolsDirectory/Tools/LiME/src/lime-$kernelVersion.ko" "path=$storageDirectory/linuxMemDump.raw format=raw" 
+		echo "Removing Lime from Kernel..."
+		$ToolsDirectory/Tools/./rmmod "lime"
+		echo ""
+		
+	else
+		echo "Hmmm, something went wrong :("
+	fi
+fi
+
+#Compares usb storage space and host computer storage space.  If USB is bigger prompts user if they would like to create an image.  User must choose Y or y.  Otherwise it skips
+if test $usbDriveSize -gt $hostDriveSize
+then
+	read -p "Your USB drive is bigger that the host harddrive, would you like to make a forensic image? (This could take a while) y/N: " forensicImage
+	if([[ $forensicImage == "Y" ]] || [[ $forensicImage == "y" ]] )
+	then
+		echo "Creating image of hard drive..."
+		$TooolsDirectory/Tools/./dd if=$deviceFile bs=1k conv=noerror,sync of=$storageDirectory/forensic.img
+	elif( [[ $forensicImage != "Y" ]] || [[ $forensicImage != "y" ]] )
+	then
+		echo "Skipping creation of forensic image :("
+	fi
+else
+echo "Your USB is too small to create a forensic image...sorry :("
+fi
+echo "Response script done, please safely remove USB"
