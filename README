@@ -4,7 +4,7 @@ Steps to use Response Script:
 
 1.  Open terminal and cd into the response script directory
 
-2.  Use ls to confirm that you are in the correct directory (you should see response, Tools, Collect, ldd_output, README)
+2.  Use ls to confirm that you are in the correct directory (you should see response, Tools, Collect, README)
 
 3.  Execute response as either root (sudo -i) or sudo user
 	Ex: sudo ./response
